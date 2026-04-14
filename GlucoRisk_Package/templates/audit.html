@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Audit Log | GlucoRisk{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4 fade-in flex-wrap gap-3">
+  <div>
+    <h1 class="page-title"><i class="bi bi-journal-text text-danger me-2"></i>HIPAA Audit Log</h1>
+    <div class="page-sub">Immutable record of all system access — admin only</div>
+  </div>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light"><i class="bi bi-arrow-left me-1"></i>Dashboard</a>
+</div>
+
+<div class="card-dark fade-in" style="animation-delay: 0.1s;">
+  <div class="table-responsive">
+    <table class="table table-dark table-sm" style="font-size: 12px;">
+      <thead style="text-transform: uppercase; font-size: 10px; color: var(--muted);">
+        <tr>
+          <th>Timestamp</th>
+          <th>User</th>
+          <th>Action</th>
+          <th>Resource</th>
+          <th>IP</th>
+          <th>Severity</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr class="{{ 'table-danger' if log.severity == 'CRITICAL' else ('table-warning' if log.severity == 'WARNING' else '') }}">
+          <td style="white-space: nowrap;">{{ log.timestamp[:19] }}</td>
+          <td>{{ log.username or '—' }}</td>
+          <td><code>{{ log.action }}</code></td>
+          <td>{{ log.resource or '—' }}</td>
+          <td style="font-family: monospace;">{{ log.ip_address or '—' }}</td>
+          <td>
+            <span class="badge {{ 'bg-danger' if log.severity == 'CRITICAL' else ('bg-warning text-dark' if log.severity == 'WARNING' else 'bg-info') }}">
+              {{ log.severity }}
+            </span>
+          </td>
+          <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;">{{ log.details or '—' }}</td>
+        </tr>
+        {% endfor %}
+        {% if not logs %}
+        <tr><td colspan="7" class="text-center" style="color: var(--muted); padding: 30px;">No audit events recorded yet</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

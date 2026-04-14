@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Consent Management | GlucoRisk{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4 fade-in flex-wrap gap-3">
+  <div>
+    <h1 class="page-title"><i class="bi bi-shield-check text-success me-2"></i>Consent Management</h1>
+    <div class="page-sub">HIPAA-compliant consent tracking — manage your data permissions</div>
+  </div>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light"><i class="bi bi-arrow-left me-1"></i>Dashboard</a>
+</div>
+
+<!-- Consent Cards -->
+<div class="row g-4 fade-in" style="animation-delay: 0.1s;">
+  {% for ct in consent_types %}
+  <div class="col-md-6">
+    <div class="card-dark" style="border-left: 4px solid {{ '#22c55e' if active[ct] else '#6b7280' }};">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <div style="font-weight: 700; font-size: 16px; text-transform: capitalize;">
+            <i class="bi {{ 'bi-check-circle-fill text-success' if active[ct] else 'bi-x-circle text-muted' }} me-2"></i>
+            {{ ct.replace('_', ' ') | title }}
+          </div>
+          <div style="color: var(--muted); font-size: 12px;" class="mt-1">
+            {% if ct == 'data_collection' %}Your vital signs and health data will be recorded{% endif %}
+            {% if ct == 'sms_alerts' %}SMS notifications on critical health events{% endif %}
+            {% if ct == 'telemetry_sharing' %}Share anonymized data with healthcare providers{% endif %}
+            {% if ct == 'research_use' %}Allow anonymized data for medical research{% endif %}
+          </div>
+        </div>
+        <form method="POST" class="d-inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="consent_type" value="{{ ct }}">
+          {% if active[ct] %}
+          <button name="action" value="revoke" class="btn btn-outline-danger btn-sm">Revoke</button>
+          {% else %}
+          <button name="action" value="grant" class="btn btn-success btn-sm">Grant</button>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Consent History -->
+<div class="card-dark fade-in mt-4" style="animation-delay: 0.2s;">
+  <div class="card-title"><i class="bi bi-clock-history"></i> Consent History</div>
+  <div class="table-responsive">
+    <table class="table table-dark table-sm" style="font-size: 13px;">
+      <thead><tr><th>Type</th><th>Granted</th><th>Revoked</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for r in history %}
+        <tr>
+          <td>{{ r.consent_type.replace('_', ' ') | title }}</td>
+          <td>{{ r.granted_at[:16] if r.granted_at else '—' }}</td>
+          <td>{{ r.revoked_at[:16] if r.revoked_at else '—' }}</td>
+          <td><span class="badge {{ 'bg-success' if not r.revoked_at else 'bg-secondary' }}">{{ 'Active' if not r.revoked_at else 'Revoked' }}</span></td>
+        </tr>
+        {% endfor %}
+        {% if not history %}
+        <tr><td colspan="4" class="text-center" style="color: var(--muted);">No consent records yet</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Telemetry History | GlucoRisk{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4 fade-in flex-wrap gap-3">
+  <div>
+    <h1 class="page-title"><i class="bi bi-clock-history text-warning me-2"></i>Telemetry History</h1>
+    <div class="page-sub">Complete record of all sensor readings and ML predictions</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="/api/export_pdf" class="btn btn-outline-light"><i class="bi bi-file-pdf me-1"></i>Export PDF</a>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light"><i class="bi bi-arrow-left me-1"></i>Dashboard</a>
+  </div>
+</div>
+
+<!-- History Chart -->
+<div class="card-dark fade-in mb-4" style="animation-delay: 0.1s;">
+  <div class="card-title"><i class="bi bi-graph-up-arrow"></i> Glucose Trend (Last 200 Readings)</div>
+  <canvas id="historyChart" style="height: 250px; width: 100%;"></canvas>
+</div>
+
+<!-- Stats Cards -->
+<div class="row g-3 mb-4 fade-in" style="animation-delay: 0.15s;" id="stats-row">
+  <div class="col-md-3">
+    <div class="card-dark text-center" style="border-top: 3px solid #00f0ff;">
+      <div style="color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Total Readings</div>
+      <div id="stat-count" style="font-size: 2rem; font-family: 'Syne', sans-serif; font-weight: 800; color: #00f0ff;">—</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card-dark text-center" style="border-top: 3px solid #22c55e;">
+      <div style="color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Avg Glucose</div>
+      <div id="stat-glucose" style="font-size: 2rem; font-family: 'Syne', sans-serif; font-weight: 800; color: #22c55e;">—</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card-dark text-center" style="border-top: 3px solid #ef4444;">
+      <div style="color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Avg Heart Rate</div>
+      <div id="stat-hr" style="font-size: 2rem; font-family: 'Syne', sans-serif; font-weight: 800; color: #ef4444;">—</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card-dark text-center" style="border-top: 3px solid #a855f7;">
+      <div style="color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">High Risk Events</div>
+      <div id="stat-high" style="font-size: 2rem; font-family: 'Syne', sans-serif; font-weight: 800; color: #a855f7;">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- Data Table -->
+<div class="card-dark fade-in" style="animation-delay: 0.2s;">
+  <div class="card-title"><i class="bi bi-table"></i> Raw Data (Latest 200)</div>
+  <div style="max-height: 500px; overflow-y: auto;">
+    <table class="table-dark-custom">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Glucose</th>
+          <th>HR</th>
+          <th>SpO2</th>
+          <th>GSR</th>
+          <th>Risk</th>
+          <th>Score</th>
+          <th>Source</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td style="font-size: 12px;">{{ e.timestamp[:19] if e.timestamp else '—' }}</td>
+          <td>{{ "%.1f"|format(e.glucose) if e.glucose else '—' }}</td>
+          <td>{{ "%.0f"|format(e.heart_rate) if e.heart_rate else '—' }}</td>
+          <td>{{ "%.1f"|format(e.spo2) if e.spo2 else '—' }}</td>
+          <td>{{ "%.0f"|format(e.gsr) if e.gsr else '—' }}</td>
+          <td><span class="risk-badge risk-{{ e.risk }}" style="font-size: 10px; padding: 3px 8px;">{{ e.risk if e.risk else '—' }}</span></td>
+          <td>{{ e.score if e.score else '—' }}%</td>
+          <td style="font-size: 11px; color: var(--muted);">{{ e.source if e.source else 'form' }}</td>
+        </tr>
+        {% endfor %}
+        {% if not entries %}
+        <tr><td colspan="8" class="text-center" style="color: var(--muted); padding: 40px;">No telemetry data yet. Start monitoring on the dashboard to collect readings.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+// History Chart
+const entries = {{ entries|tojson }};
+const labels = entries.map(e => e.timestamp ? e.timestamp.slice(11, 19) : '').reverse();
+const glucoseData = entries.map(e => e.glucose).reverse();
+const hrData = entries.map(e => e.heart_rate).reverse();
+
+new Chart(document.getElementById('historyChart'), {
+  type: 'line',
+  data: {
+    labels: labels,
+    datasets: [
+      { label: 'Glucose (mg/dL)', data: glucoseData, borderColor: '#00f0ff', backgroundColor: 'rgba(0,240,255,0.1)', fill: true, tension: 0.3, pointRadius: 0 },
+      { label: 'Heart Rate (BPM)', data: hrData, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.3, pointRadius: 0 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: '#94a3b8' } } },
+    scales: {
+      x: { ticks: { color: '#64748b', maxTicksLimit: 15 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+      y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+    }
+  }
+});
+
+// Load stats
+fetch('/api/stats')
+  .then(r => r.json())
+  .then(data => {
+    document.getElementById('stat-count').textContent = data.cnt || 0;
+    document.getElementById('stat-glucose').textContent = data.avg_glu ? data.avg_glu.toFixed(1) : '—';
+    document.getElementById('stat-hr').textContent = data.avg_hr ? data.avg_hr.toFixed(0) : '—';
+    document.getElementById('stat-high').textContent = data.high_count || 0;
+  });
+</script>
+
+{% endblock %}

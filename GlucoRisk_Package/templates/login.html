@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Login | GlucoRisk{% endblock %}
+{% block content %}
+
+<div class="auth-wrap">
+  <div class="auth-card fade-in">
+    <div class="auth-logo"><i class="bi bi-shield-lock"></i> GlucoRisk</div>
+    <div class="auth-sub">Sign in to your intelligent monitoring dashboard</div>
+
+    <form method="POST" action="{{ url_for('login') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <div class="mb-4">
+        <label class="form-label" for="username">Username</label>
+        <div class="input-group">
+          <span class="input-group-text" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-right: none; color: var(--muted);"><i class="bi bi-person"></i></span>
+          <input type="text" class="form-control" id="username" name="username"
+                 placeholder="Enter your username" style="border-left: none;" required autofocus>
+        </div>
+      </div>
+      <div class="mb-4">
+        <label class="form-label" for="password">Password</label>
+        <div class="input-group">
+          <span class="input-group-text" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-right: none; color: var(--muted);"><i class="bi bi-key"></i></span>
+          <input type="password" class="form-control" id="password" name="password"
+                 placeholder="••••••••" style="border-left: none;" required>
+        </div>
+      </div>
+      
+      <button type="submit" class="btn-predict mt-2">Access Dashboard <i class="bi bi-arrow-right-short"></i></button>
+    </form>
+
+    <div class="text-center mt-5" style="color: var(--muted); font-size: 13px;">
+      Don't have an account? <a href="{{ url_for('register') }}" class="auth-link ml-1">Create one now</a>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

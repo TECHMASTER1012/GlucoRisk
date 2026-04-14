@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Patient Profile | GlucoRisk{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4 fade-in">
+  <div>
+    <h1 class="page-title"><i class="bi bi-person-badge-fill text-info me-2"></i>Patient Profile</h1>
+    <div class="page-sub">Configure your medical profile for accurate risk predictions</div>
+  </div>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light"><i class="bi bi-arrow-left me-1"></i>Dashboard</a>
+</div>
+
+<div class="row g-4 fade-in" style="animation-delay: 0.1s;">
+  <div class="col-lg-7">
+    <div class="card-dark">
+      <div class="card-title"><i class="bi bi-clipboard2-pulse"></i> Medical Information</div>
+      <form method="POST" action="{{ url_for('profile') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Display Name</label>
+            <input type="text" class="form-control" name="display_name"
+                   value="{{ profile.display_name if profile else session.get('username', '') }}"
+                   placeholder="e.g. Safal Gupta" maxlength="50">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Age (years)</label>
+            <input type="number" class="form-control" name="age" min="1" max="120"
+                   value="{{ profile.age|default(25, true) }}" step="1">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">BMI (kg/m²)</label>
+            <input type="number" class="form-control" name="bmi" min="10" max="60"
+                   value="{{ profile.bmi|default(22, true) }}" step="0.1">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Blood Type</label>
+            <select class="form-select" name="blood_type">
+              <option value="">-- Select --</option>
+              {% for bt in ['A+','A-','B+','B-','AB+','AB-','O+','O-'] %}
+              <option value="{{ bt }}" {{ 'selected' if profile and profile.blood_type == bt }}>{{ bt }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-8">
+            <label class="form-label">Emergency Contact</label>
+            <input type="text" class="form-control" name="emergency_contact"
+                   value="{{ profile.emergency_contact if profile else '' }}"
+                   placeholder="+91 XXXXX XXXXX" maxlength="20">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Known Allergies</label>
+            <textarea class="form-control" name="allergies" rows="2"
+                      placeholder="e.g. Penicillin, Latex" maxlength="200">{{ profile.allergies if profile else '' }}</textarea>
+          </div>
+        </div>
+        <button type="submit" class="btn-predict mt-4"><i class="bi bi-check-circle me-2"></i>Save Profile</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card-dark" style="border-left: 4px solid var(--accent);">
+      <div class="card-title"><i class="bi bi-bar-chart-line"></i> Account Summary</div>
+      <div class="d-flex flex-column gap-3">
+        <div class="d-flex justify-content-between align-items-center p-3" style="background: rgba(0,240,255,0.05); border-radius: 10px;">
+          <span style="color: var(--muted);">Username</span>
+          <strong>{{ session.get('username') }}</strong>
+        </div>
+        <div class="d-flex justify-content-between align-items-center p-3" style="background: rgba(0,240,255,0.05); border-radius: 10px;">
+          <span style="color: var(--muted);">Total Readings</span>
+          <strong>{{ entry_count }}</strong>
+        </div>
+        <div class="d-flex justify-content-between align-items-center p-3" style="background: rgba(0,240,255,0.05); border-radius: 10px;">
+          <span style="color: var(--muted);">Profile Status</span>
+          <strong style="color: {{ 'var(--normal)' if profile else 'var(--moderate)' }}">
+            {{ 'Complete' if profile else 'Incomplete' }}
+          </strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-dark mt-4" style="border-left: 4px solid var(--accent2);">
+      <div class="card-title"><i class="bi bi-keyboard"></i> Keyboard Shortcuts</div>
+      <div class="d-flex flex-column gap-2" style="font-size: 13px;">
+        <div class="d-flex justify-content-between"><span style="color:var(--muted)">Dextrose Push</span><kbd style="background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:4px;">D</kbd></div>
+        <div class="d-flex justify-content-between"><span style="color:var(--muted)">Insulin Push</span><kbd style="background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:4px;">I</kbd></div>
+        <div class="d-flex justify-content-between"><span style="color:var(--muted)">Manual Override</span><kbd style="background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:4px;">M</kbd></div>
+        <div class="d-flex justify-content-between"><span style="color:var(--muted)">Export PDF</span><kbd style="background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:4px;">P</kbd></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,671 @@
+{% extends "base.html" %}
+{% block title %}ICU Command Center | GlucoRisk{% endblock %}
+{% block content %}
+
+<!-- Audio elements for risk alerts -->
+<audio id="alert-high" src="{{ url_for('static', filename='alert_high.wav') }}" preload="auto"></audio>
+<audio id="alert-moderate" src="{{ url_for('static', filename='alert_moderate.wav') }}" preload="auto"></audio>
+
+<div class="d-flex justify-content-between align-items-center mb-4 fade-in header-controls flex-wrap">
+  <div>
+    <h1 class="page-title"><i class="bi bi-heart-pulse-fill text-danger me-2"></i>ICU Command Center</h1>
+    <div class="page-sub mb-1">Live Continuous Patient Monitoring & ML Telemetry</div>
+    <div class="text-muted small d-flex align-items-center gap-3">
+        <span><strong>Attending:</strong> Dr. Mark Greene</span>
+        <span><strong>Patient:</strong> Safal Gupta, Age 21</span>
+        <span class="badge bg-success-subtle text-success border border-success" id="telemetry-status-badge">
+            <i class="bi bi-broadcast pulse-icon me-1"></i>Live Simulation
+        </span>
+    </div>
+  </div>
+  <div class="text-end">
+    <div class="mb-2">
+        <button class="btn btn-outline-warning btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#overrideModal">
+            <i class="bi bi-hypnotize me-1"></i> Manual Override
+        </button>
+        <button class="btn btn-outline-info btn-sm fw-bold shadow-sm ms-2" onclick="window.print()">
+            <i class="bi bi-file-earmark-pdf me-1"></i> Export Medical Report
+        </button>
+    </div>
+    <div class="text-muted small" id="last-manual-time">Last Sync: Just now</div>
+  </div>
+</div>
+
+<!-- Manual Data Indicator (Phase 8 Refinement) -->
+<div id="manual-data-alert" class="alert alert-warning border-0 shadow-sm mb-4 d-none fade-in" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">
+    <div class="d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-exclamation-octagon-fill me-2"></i><strong>Manual Override Active:</strong> Displaying injected telemetry parameters.</span>
+        <span id="manual-data-summary" class="small fw-bold"></span>
+        <button class="btn btn-sm btn-warning text-dark py-0" onclick="resetTelemetry()">Resume Live</button>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <!-- Column 1: Live Critical Vitals -->
+  <div class="col-lg-3">
+    <div class="card-dark fade-in h-100 d-flex flex-column justify-content-between" style="border-left: 4px solid var(--accent);">
+      <div class="card-title text-center"><i class="bi bi-activity"></i> Vital Signs</div>
+      
+      <div class="vital-block text-center mt-3">
+        <h2 id="live-glucose" class="display-3 fw-bold mb-0 text-white" style="text-shadow: 0 0 15px rgba(0, 240, 255, 0.4);">---</h2>
+        <div class="form-text mt-0">Glucose (mg/dL)</div>
+      </div>
+      
+      <div class="vital-block text-center mt-4">
+        <h2 id="live-hr" class="display-5 fw-bold mb-0 text-white">---</h2>
+        <div class="form-text mt-0"><i class="bi bi-heart-fill text-danger"></i> Heart Rate (BPM)</div>
+      </div>
+
+      <div class="row text-center mt-4 mb-2">
+        <div class="col-6">
+          <h4 id="live-spo2" class="fw-bold mb-0 text-white">---</h4>
+          <div class="form-text mt-0">SpO2 (%)</div>
+        </div>
+        <div class="col-6">
+          <h4 id="live-gsr" class="fw-bold mb-0 text-white">---</h4>
+          <div class="form-text mt-0">GSR</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Column 2: ML Inference & AI Insights -->
+  <div class="col-lg-4">
+    <div class="card-dark fade-in h-100 d-flex flex-column" style="animation-delay: 0.1s; border-left: 4px solid var(--primary);">
+      <div class="card-title"><i class="bi bi-cpu"></i> ML Risk Inference Hub</div>
+      
+      <div class="row align-items-center mt-3 mb-4">
+        <div class="col-5 text-center">
+            <!-- 3D Digital Twin SVG -->
+            <svg viewBox="0 0 100 200" style="height: 140px; filter: drop-shadow(0 0 5px rgba(0,240,255,0.3));" stroke="rgba(0,255,255,0.5)" stroke-width="2" fill="none">
+               <path id="dt-brain" d="M 40 20 C 40 5, 60 5, 60 20 C 65 30, 35 30, 40 20 Z" style="transition: fill 0.5s, filter 0.5s;" />
+               <path id="dt-torso" d="M 35 35 L 65 35 L 60 90 L 40 90 Z" style="transition: fill 0.5s, filter 0.5s;" />
+               <circle id="dt-heart" cx="55" cy="50" r="6" style="transition: fill 0.5s, filter 0.5s; transform-origin: 55px 50px;" />
+               <path id="dt-arms" d="M 35 35 L 20 80 M 65 35 L 80 80" style="transition: stroke 0.5s, filter 0.5s;" />
+               <path id="dt-legs" d="M 45 90 L 35 180 M 55 90 L 65 180" style="transition: stroke 0.5s, filter 0.5s;" />
+            </svg>
+            <div class="small text-muted mt-1" style="font-size: 0.6rem;">DIGITAL TWIN MAPPING</div>
+        </div>
+        <div class="col-7">
+            <div id="live-risk-badge" class="risk-badge risk-NORMAL px-2 py-3 w-100 d-block fs-6 text-center" style="box-shadow: 0 4px 15px rgba(0,0,0,0.5); transition: all 0.5s ease;">
+              AWAITING TELEMETRY
+              <div id="live-score" class="mt-1 opacity-75" style="font-size: 0.75rem;">--% confidence</div>
+            </div>
+        </div>
+      </div>
+
+      <div class="p-3 rounded flex-grow-1" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05);">
+        <h6 class="text-uppercase text-muted" style="font-size: 0.75rem; letter-spacing: 1px;"><i class="bi bi-robot"></i> AI Clinical Insights</h6>
+        <p id="live-insight" class="mb-0 mt-2 text-white" style="font-size: 0.95rem; line-height: 1.5; font-family: 'DM Mono', monospace;">
+          Connecting to secure telemetry stream...
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Column 3: Telemetry Charts -->
+  <div class="col-lg-5">
+    <div class="card-dark fade-in h-100 d-flex flex-column" style="animation-delay: 0.2s;">
+      <div class="card-title d-flex justify-content-between">
+        <span><i class="bi bi-graph-up"></i> Live Sensor Telemetry</span>
+        <span class="pulse-icon text-success" style="font-size: 10px;">🟢 REC</span>
+      </div>
+      
+      <!-- 2x2 Sensor Chart Grid -->
+      <div class="row g-2 mt-1">
+        <div class="col-6">
+          <div class="p-1 rounded" style="background: rgba(0,240,255,0.05); border: 1px solid rgba(0,240,255,0.15);">
+            <div class="text-center text-muted" style="font-size:0.6rem; letter-spacing:1px;">GLUCOSE (mg/dL)</div>
+            <div style="position: relative; height: 90px;"><canvas id="liveGlucoseChart"></canvas></div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="p-1 rounded" style="background: rgba(239,68,68,0.05); border: 1px solid rgba(239,68,68,0.15);">
+            <div class="text-center text-muted" style="font-size:0.6rem; letter-spacing:1px;">HEART RATE (BPM)</div>
+            <div style="position: relative; height: 90px;"><canvas id="liveHrChart"></canvas></div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="p-1 rounded" style="background: rgba(34,197,94,0.05); border: 1px solid rgba(34,197,94,0.15);">
+            <div class="text-center text-muted" style="font-size:0.6rem; letter-spacing:1px;">SpO2 (%)</div>
+            <div style="position: relative; height: 90px;"><canvas id="liveSpo2Chart"></canvas></div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="p-1 rounded" style="background: rgba(249,115,22,0.05); border: 1px solid rgba(249,115,22,0.15);">
+            <div class="text-center text-muted" style="font-size:0.6rem; letter-spacing:1px;">GSR (STRESS)</div>
+            <div style="position: relative; height: 90px;"><canvas id="liveGsrChart"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wide Risk Score Timeline -->
+      <div class="mt-2 p-1 rounded" style="background: rgba(168,85,247,0.05); border: 1px solid rgba(168,85,247,0.15);">
+        <div class="text-center text-muted" style="font-size:0.6rem; letter-spacing:1px;">ML RISK CONFIDENCE (%)</div>
+        <div style="position: relative; height: 70px;"><canvas id="liveRiskChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- Interactive Interventions & Clinical Log Row -->
+<div class="row g-4 mb-4 fade-in" style="animation-delay: 0.3s;">
+  <!-- Column 4: Medical Interventions & AI Protocols -->
+  <div class="col-lg-5">
+    <div class="card-dark h-100" style="border-left: 4px solid #f59e0b;">
+      <div class="card-title"><i class="bi bi-capsule"></i> Treatment & AI Protocols</div>
+      <div class="d-grid gap-3 mt-3">
+        <button class="btn btn-warning text-dark text-start p-3 fw-bold shadow-lg" onclick="generateAIProtocol()">
+          <i class="bi bi-robot me-2"></i>Generate AI Treatment Protocol <span class="badge bg-dark text-warning float-end"><i class="bi bi-stars"></i> Auto</span>
+        </button>
+        <button class="btn btn-danger text-start p-3 fw-bold" onclick="administerTreatment('dextrose')">
+          <i class="bi bi-lightning-charge-fill me-2"></i>Push 15g IV Dextrose <span class="badge bg-dark float-end">Manual</span>
+        </button>
+        <button class="btn btn-info text-start p-3 fw-bold text-dark" onclick="administerTreatment('insulin')">
+          <i class="bi bi-droplet-fill me-2"></i>Push 5U Fast-Acting Insulin <span class="badge bg-dark float-end">Manual</span>
+        </button>
+      </div>
+      <hr class="border-secondary my-3">
+      <a href="/api/export_pdf" class="btn btn-outline-light text-start p-3 fw-bold w-100">
+        <i class="bi bi-file-earmark-pdf me-2"></i>Export Clinical PDF Report <span class="badge bg-dark float-end">Download</span>
+      </a>
+      <div id="intervention-status" class="mt-3 text-center small text-success fw-bold" style="min-height: 20px;"></div>
+    </div>
+  </div>
+
+  <!-- Column 5: Clinical Event Log -->
+  <div class="col-lg-7">
+    <div class="card-dark h-100 d-flex flex-column">
+      <div class="card-title"><i class="bi bi-journal-medical"></i> Clinical Event Log</div>
+      <div id="clinical-log" class="flex-grow-1 overflow-auto mt-2 pe-2" style="max-height: 200px; font-family: 'DM Mono', monospace; font-size: 0.85rem;">
+        <div class="text-muted mb-2">[System] Telemetry stream initialized. Awaiting data...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<div class="row fade-in" style="animation-delay: 0.4s;">
+    <div class="col-12 text-center text-muted small mt-2 mb-4">
+        <p>Intensive Care Monitoring Interface v2.0 - Powered by GlucoRisk Deep Neural Networks.</p>
+    </div>
+</div>
+
+<!-- AI Protocol Modal (Phase 8) -->
+<div class="modal fade" id="protocolModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content card-dark border-info" style="background: var(--bg-gradient) !important;">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title text-info fw-bold"><i class="bi bi-robot me-2"></i>Generated AI Treatment Protocol</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="p-3 rounded mb-3" style="background: rgba(0, 240, 255, 0.1); border-left: 3px solid var(--accent);">
+            <p class="mb-0 small text-light"><strong>Patient Status Snapshot:</strong> <span id="protocol-snapshot">Loading...</span></p>
+        </div>
+        <div id="protocol-content" class="text-white" style="line-height: 1.8;">
+            <!-- Protocol injected via JS -->
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-info" data-bs-dismiss="modal">Acknowledge & Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Manual Override Modal (Phase 8) -->
+<div class="modal fade" id="overrideModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content card-dark border-warning" style="background: var(--bg-gradient) !important;">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title text-warning fw-bold"><i class="bi bi-exclamation-triangle-fill me-2"></i>Manual Telemetry Override</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-4">Inject raw telemetry values directly into the ML inference engine to instantly test edge-case responses and trigger alarms without waiting for the simulation.</p>
+        
+        <div class="row g-3">
+            <div class="col-6">
+                <label class="form-label text-white">Glucose (mg/dL)</label>
+                <input type="number" id="override-glucose" class="form-control" value="45" placeholder="e.g. 45">
+            </div>
+            <div class="col-6">
+                <label class="form-label text-white">Heart Rate (BPM)</label>
+                <input type="number" id="override-hr" class="form-control" value="155" placeholder="e.g. 155">
+            </div>
+            <div class="col-6">
+                <label class="form-label text-white">SpO2 (%)</label>
+                <input type="number" id="override-spo2" class="form-control" value="88" placeholder="e.g. 88">
+            </div>
+            <div class="col-6">
+                <label class="form-label text-white">GSR (Stress)</label>
+                <input type="number" id="override-gsr" class="form-control" value="600" placeholder="e.g. 600">
+            </div>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-warning fw-bold text-dark" onclick="injectTelemetry()" data-bs-dismiss="modal"><i class="bi bi-lightning-charge-fill"></i> Execute Injection</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    
+    // Audio alerts
+    const alertHigh = document.getElementById('alert-high');
+    const alertMod = document.getElementById('alert-moderate');
+    let lastRisk = "NORMAL";
+    
+    // Chart Setup
+    Chart.defaults.color = '#94a3b8';
+    Chart.defaults.font.family = "'DM Mono', monospace";
+    
+    const commonOpts = {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 0 }, // critical for smooth live streaming
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { display: false } },
+        y: { grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: false }
+      },
+      elements: { point: { radius: 0 } }
+    };
+
+    const ctxG = document.getElementById('liveGlucoseChart').getContext('2d');
+    const gradG = ctxG.createLinearGradient(0, 0, 0, 150);
+    gradG.addColorStop(0, 'rgba(0, 240, 255, 0.5)');
+    gradG.addColorStop(1, 'rgba(0, 240, 255, 0.0)');
+    
+    const chartG = new Chart(ctxG, {
+      type: 'line',
+      data: { labels: [], datasets: [{ data: [], borderColor: '#00f0ff', borderWidth: 2, backgroundColor: gradG, fill: true, tension: 0.4 }] },
+      options: commonOpts
+    });
+
+    const ctxH = document.getElementById('liveHrChart').getContext('2d');
+    const gradH = ctxH.createLinearGradient(0, 0, 0, 100);
+    gradH.addColorStop(0, 'rgba(239, 68, 68, 0.5)');
+    gradH.addColorStop(1, 'rgba(239, 68, 68, 0.0)');
+    
+    const chartH = new Chart(ctxH, {
+      type: 'line',
+      data: { labels: [], datasets: [{ data: [], borderColor: '#ef4444', borderWidth: 1.5, backgroundColor: gradH, fill: true, tension: 0.4 }] },
+      options: commonOpts
+    });
+
+    // SpO2 Chart
+    const ctxS = document.getElementById('liveSpo2Chart').getContext('2d');
+    const gradS = ctxS.createLinearGradient(0, 0, 0, 100);
+    gradS.addColorStop(0, 'rgba(34, 197, 94, 0.5)');
+    gradS.addColorStop(1, 'rgba(34, 197, 94, 0.0)');
+    
+    const chartS = new Chart(ctxS, {
+      type: 'line',
+      data: { labels: [], datasets: [{ data: [], borderColor: '#22c55e', borderWidth: 1.5, backgroundColor: gradS, fill: true, tension: 0.4 }] },
+      options: commonOpts
+    });
+
+    // GSR Chart
+    const ctxGSR = document.getElementById('liveGsrChart').getContext('2d');
+    const gradGSR = ctxGSR.createLinearGradient(0, 0, 0, 100);
+    gradGSR.addColorStop(0, 'rgba(249, 115, 22, 0.5)');
+    gradGSR.addColorStop(1, 'rgba(249, 115, 22, 0.0)');
+    
+    const chartGSR = new Chart(ctxGSR, {
+      type: 'line',
+      data: { labels: [], datasets: [{ data: [], borderColor: '#f97316', borderWidth: 1.5, backgroundColor: gradGSR, fill: true, tension: 0.4 }] },
+      options: commonOpts
+    });
+
+    // Risk Score Chart
+    const ctxR = document.getElementById('liveRiskChart').getContext('2d');
+    const gradR = ctxR.createLinearGradient(0, 0, 0, 80);
+    gradR.addColorStop(0, 'rgba(168, 85, 247, 0.5)');
+    gradR.addColorStop(1, 'rgba(168, 85, 247, 0.0)');
+    
+    const chartR = new Chart(ctxR, {
+      type: 'line',
+      data: { labels: [], datasets: [{ data: [], borderColor: '#a855f7', borderWidth: 1.5, backgroundColor: gradR, fill: true, tension: 0.4 }] },
+      options: commonOpts
+    });
+
+    // All charts array for easy batch operations
+    const allCharts = [chartG, chartH, chartS, chartGSR, chartR];
+
+    // Server-Sent Events (SSE) Listener
+    const evtSource = new EventSource("{{ url_for('stream') }}");
+    
+    evtSource.onmessage = function(event) {
+      const data = JSON.parse(event.data);
+      const vitals = data.inputs;
+      const res = data.result;
+      
+      // Update Vitals Text
+      document.getElementById('live-glucose').innerText = vitals.glucose.toFixed(1);
+      document.getElementById('live-hr').innerText = vitals.heart_rate.toFixed(0);
+      document.getElementById('live-spo2').innerText = vitals.spo2.toFixed(1);
+      document.getElementById('live-gsr').innerText = vitals.gsr.toFixed(0);
+      
+      // Update Risk Text
+      const badge = document.getElementById('live-risk-badge');
+      badge.className = `risk-badge w-100 d-block risk-${res.risk}`;
+      badge.innerHTML = `${res.risk.replace('_', ' ')} <div class="fs-6 mt-1 opacity-75">${res.score}% confidence</div>`;
+      
+      // Update UI Connection Status Source
+      const statusBadge = document.getElementById('telemetry-status-badge');
+      const manualAlertBox = document.getElementById('manual-data-alert');
+      if (data.source === 'hardware') {
+          statusBadge.className = "badge bg-info text-dark border border-info";
+          statusBadge.innerHTML = '<i class="bi bi-cpu-fill pulse-icon me-1"></i>ESP8266 Hardware';
+          manualAlertBox.classList.add('d-none');
+      } else if (data.source === 'manual') {
+          statusBadge.className = "badge bg-warning text-dark border border-warning";
+          statusBadge.innerHTML = '<i class="bi bi-hand-index-thumb-fill me-1"></i>Manual Override';
+      } else {
+          statusBadge.className = "badge bg-success-subtle text-success border border-success";
+          statusBadge.innerHTML = '<i class="bi bi-broadcast pulse-icon me-1"></i>Simulation Mode';
+          manualAlertBox.classList.add('d-none');
+      }
+      
+      // Update AI Insights and Event Log
+      if (res.insight) {
+        if (document.getElementById('live-insight').innerText !== res.insight) {
+           document.getElementById('live-insight').innerHTML = res.insight;
+           addLog(res.insight, res.risk === 'HIGH_RISK' ? 'text-danger fw-bold' : (res.risk === 'MODERATE_RISK' ? 'text-warning' : 'text-success'));
+        }
+      }
+
+      // Play Alarms if risk escalates
+      if (res.risk === 'HIGH_RISK' && lastRisk !== 'HIGH_RISK') {
+          alertHigh.play().catch(e=>console.log(e));
+          addLog("SMS Alert sent to Primary Care Physician.", "text-danger fw-bold");
+      } else if (res.risk === 'MODERATE_RISK' && lastRisk !== 'MODERATE_RISK' && lastRisk !== 'HIGH_RISK') {
+          alertMod.play().catch(e=>console.log(e));
+      }
+      lastRisk = res.risk;
+
+      // Update Digital Twin Anatomy
+      const dtHeart = document.getElementById('dt-heart');
+      const dtBrain = document.getElementById('dt-brain');
+      const dtArms = document.getElementById('dt-arms');
+      const dtLegs = document.getElementById('dt-legs');
+
+      if (dtHeart) {
+          if (vitals.heart_rate > 100) {
+              dtHeart.style.fill = 'rgba(239, 68, 68, 0.8)';
+              dtHeart.style.filter = 'drop-shadow(0 0 10px rgba(239,68,68,1))';
+              dtHeart.style.animation = 'pulse-icon 0.5s infinite';
+          } else {
+              dtHeart.style.fill = 'rgba(0, 255, 255, 0.2)';
+              dtHeart.style.filter = 'none';
+              dtHeart.style.animation = 'none';
+          }
+      }
+
+      if (dtBrain) {
+          if (vitals.glucose < 70) {
+              dtBrain.style.fill = 'rgba(234, 179, 8, 0.8)';
+              dtBrain.style.filter = 'drop-shadow(0 0 15px rgba(234,179,8,1))';
+          } else if (vitals.glucose > 180) {
+              dtBrain.style.fill = 'rgba(249, 115, 22, 0.8)';
+              dtBrain.style.filter = 'drop-shadow(0 0 10px rgba(249,115,22,1))';
+          } else {
+              dtBrain.style.fill = 'rgba(0, 255, 255, 0.1)';
+              dtBrain.style.filter = 'none';
+          }
+      }
+
+      if (dtArms && dtLegs) {
+          if (vitals.gsr > 500) {
+              dtArms.style.stroke = 'rgba(249, 115, 22, 0.8)';
+              dtLegs.style.stroke = 'rgba(249, 115, 22, 0.8)';
+              dtArms.style.filter = 'drop-shadow(0 0 5px orange)';
+              dtLegs.style.filter = 'drop-shadow(0 0 5px orange)';
+          } else {
+              dtArms.style.stroke = 'rgba(0, 255, 255, 0.5)';
+              dtLegs.style.stroke = 'rgba(0, 255, 255, 0.5)';
+              dtArms.style.filter = 'none';
+              dtLegs.style.filter = 'none';
+          }
+      }
+
+      // ---- Update ALL 5 Charts ----
+      const timeStr = data.timestamp;
+      const MAX_POINTS = 30;
+      
+      // Push data to all charts
+      chartG.data.labels.push(timeStr);
+      chartG.data.datasets[0].data.push(vitals.glucose);
+      
+      chartH.data.labels.push(timeStr);
+      chartH.data.datasets[0].data.push(vitals.heart_rate);
+
+      chartS.data.labels.push(timeStr);
+      chartS.data.datasets[0].data.push(vitals.spo2);
+
+      chartGSR.data.labels.push(timeStr);
+      chartGSR.data.datasets[0].data.push(vitals.gsr);
+
+      chartR.data.labels.push(timeStr);
+      chartR.data.datasets[0].data.push(res.score);
+      
+      // Shift all charts if exceeding window
+      if (chartG.data.labels.length > MAX_POINTS) {
+          allCharts.forEach(c => {
+              c.data.labels.shift();
+              c.data.datasets[0].data.shift();
+          });
+      }
+
+      // Update all charts
+      allCharts.forEach(c => c.update());
+
+      // Auto-persist to DB every 10 readings
+      if (typeof autoPersist === 'function') autoPersist(data);
+    };
+
+    // SSE reconnection with exponential backoff
+    let reconnectDelay = 1000;
+    evtSource.onerror = function() {
+      document.getElementById('live-insight').innerHTML = "<span class='text-danger'>⚠️ STREAM DISCONNECTED. Reconnecting in " + (reconnectDelay/1000) + "s...</span>";
+      evtSource.close();
+      setTimeout(() => {
+        const newSource = new EventSource("{{ url_for('stream') }}");
+        newSource.onmessage = evtSource.onmessage;
+        newSource.onerror = evtSource.onerror;
+        reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+      }, reconnectDelay);
+    };
+
+    // --- Interactive Callbacks ---
+    window.administerTreatment = function(type) {
+        fetch("{{ url_for('administer_treatment') }}", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ treatment: type })
+        }).then(() => {
+            const statusDiv = document.getElementById('intervention-status');
+            statusDiv.innerText = `Ordered ${type.toUpperCase()}...`;
+            setTimeout(() => statusDiv.innerText = '', 3000);
+            addLog(`Ordered Stat Intervention: ${type.toUpperCase()}`, 'text-info fw-bold');
+        });
+    };
+
+    function addLog(message, colorClass) {
+        const logBox = document.getElementById('clinical-log');
+        const time = new Date().toLocaleTimeString();
+        const entry = document.createElement('div');
+        entry.className = `mb-2 ${colorClass}`;
+        entry.innerHTML = `<span class="opacity-50 text-light">[${time}]</span> ${message}`;
+        logBox.insertBefore(entry, logBox.firstChild);
+    }
+    
+    // AI Treatment Protocol Generator (Phase 8)
+    window.generateAIProtocol = function() {
+        const modal = new bootstrap.Modal(document.getElementById('protocolModal'));
+        
+        // Grab current vitals from the DOM
+        const g = document.getElementById('live-glucose').innerText;
+        const hr = document.getElementById('live-hr').innerText;
+        const s = document.getElementById('live-spo2').innerText;
+        
+        document.getElementById('protocol-snapshot').innerHTML = `Glucose: <span class="text-info">${g} mg/dL</span> | HR: <span class="text-danger">${hr} bpm</span> | SpO2: <span class="text-success">${s}%</span>`;
+        const contentBox = document.getElementById('protocol-content');
+        
+        contentBox.innerHTML = '<div class="spinner-border text-info spinner-border-sm me-2" role="status"></div> <span class="text-muted">Neural Engine generating protocol...</span>';
+        modal.show();
+        
+        let protocolText = "";
+        const numG = parseFloat(g);
+        
+        if (numG < 70) {
+            protocolText = `
+                <h6 class="text-danger fw-bold border-bottom border-danger pb-2">CRITICAL HYPOGLYCEMIA PROTOCOL INITIATED</h6>
+                <ol class="mt-3">
+                    <li><strong>Immediate Action:</strong> Administer 15g Fast-Acting Carbohydrate (e.g., 4 oz juice or IV Dextrose push if unconscious).</li>
+                    <li><strong>Secondary Action:</strong> Halt any active Insulin drips immediately.</li>
+                    <li><strong>Monitoring:</strong> Re-check blood glucose in exactly 15 minutes.</li>
+                    <li><strong>Contingency:</strong> If < 70 mg/dL upon re-check, repeat Step 1. If patient seizes, push 1mg Glucagon IM.</li>
+                </ol>
+            `;
+        } else if (numG > 180) {
+            protocolText = `
+                <h6 class="text-warning fw-bold border-bottom border-warning pb-2">HYPERGLYCEMIA & DKA PREVENTION PROTOCOL</h6>
+                <ol class="mt-3">
+                    <li><strong>Immediate Action:</strong> Assess for Ketones. Administer subcutaneous rapid-acting insulin per sliding scale (Est. 4-6 Units).</li>
+                    <li><strong>Hydration:</strong> Start IV Normal Saline (0.9% NaCl) at 250 mL/hr to flush ketones.</li>
+                    <li><strong>Monitoring:</strong> Continuously monitor telemetry for hypokalemia (monitor ECG T-waves).</li>
+                    <li><strong>Re-evaluation:</strong> Check comprehensive metabolic panel (CMP) and re-check glucose in hour 1.</li>
+                </ol>
+            `;
+        } else {
+            protocolText = `
+                <h6 class="text-success fw-bold border-bottom border-success pb-2">MAINTENANCE & OBSERVATION PROTOCOL</h6>
+                <p class="mt-3">Patient vitals are currently within stable therapeutic ranges.</p>
+                <ul>
+                    <li>Continue current basal infusion rate.</li>
+                    <li>Maintain standard ICU hourly telemetry observations.</li>
+                    <li>No immediate pharmacological interventions required at this timestamp.</li>
+                </ul>
+            `;
+        }
+        
+        // Simulate typing delay for "AI generation" effect
+        setTimeout(() => {
+            contentBox.innerHTML = protocolText;
+            addLog("AI Treatment Protocol generated and reviewed by Attending.", "text-info fw-bold");
+        }, 1200);
+    };
+
+    // Manual Telemetry Injection (Phase 8 Refined)
+    window.injectTelemetry = function() {
+        const payload = {
+            glucose: document.getElementById('override-glucose').value,
+            heart_rate: document.getElementById('override-hr').value,
+            spo2: document.getElementById('override-spo2').value,
+            gsr: document.getElementById('override-gsr').value,
+            mode: "manual"
+        };
+        
+        fetch("{{ url_for('inject_telemetry') }}", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        }).then(res => res.json()).then(data => {
+            if (data.status === 'success') {
+                // Update UI to show Manual Mode
+                const badge = document.getElementById('telemetry-status-badge');
+                badge.className = "badge bg-warning text-dark border border-warning";
+                badge.innerHTML = '<i class="bi bi-hand-index-thumb-fill me-1"></i>Manual Override Active';
+                
+                const alertBox = document.getElementById('manual-data-alert');
+                alertBox.classList.remove('d-none');
+                document.getElementById('manual-data-summary').innerText = `G: ${payload.glucose} | HR: ${payload.heart_rate} | SpO2: ${payload.spo2}% | GSR: ${payload.gsr}`;
+                
+                document.getElementById('last-manual-time').innerText = "Last Override: Just now";
+                
+                addLog(`CRITICAL OVERRIDE: Injected Vitals G:${payload.glucose} HR:${payload.heart_rate}`, 'text-warning fw-bold');
+            }
+        });
+    };
+
+    window.resetTelemetry = function() {
+        // Reset to default standard vitals and resume drift
+        const payload = { glucose: 100, heart_rate: 72, spo2: 98, gsr: 400, mode: "live" };
+        fetch("{{ url_for('inject_telemetry') }}", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        }).then(() => {
+            const badge = document.getElementById('telemetry-status-badge');
+            badge.className = "badge bg-success-subtle text-success border border-success";
+            badge.innerHTML = '<i class="bi bi-broadcast pulse-icon me-1"></i>Live Simulation';
+            document.getElementById('manual-data-alert').classList.add('d-none');
+            addLog("Telemetry reset to baseline parameters. Live simulation resumed.", "text-success");
+        });
+    };
+  });
+
+  // ── Keyboard Shortcuts ──────────────────────
+  document.addEventListener('keydown', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+    switch(e.key.toLowerCase()) {
+      case 'd': administerTreatment('dextrose'); break;
+      case 'i': administerTreatment('insulin'); break;
+      case 'm': new bootstrap.Modal(document.getElementById('overrideModal')).show(); break;
+      case 'p': window.location.href = '/api/export_pdf'; break;
+    }
+  });
+
+  // ── Auto-Persist Telemetry (every 10 readings) ──
+  let persistCounter = 0;
+  let lastPersistData = null;
+
+  function autoPersist(data) {
+    persistCounter++;
+    lastPersistData = data;
+    if (persistCounter % 10 === 0 && data.inputs && data.result) {
+      fetch('/api/persist_telemetry', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          timestamp: new Date().toISOString(),
+          glucose: data.inputs.glucose,
+          heart_rate: data.inputs.heart_rate,
+          spo2: data.inputs.spo2,
+          gsr: data.inputs.gsr,
+          stress: data.inputs.stress || 0,
+          risk: data.result.risk,
+          score: data.result.score,
+          source: data.source || 'sse'
+        })
+      }).catch(() => {});
+    }
+  }
+</script>
+
+<style>
+  /* Extra clinical styling overlay */
+  @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+  .pulse-icon { animation: pulse 1.5s infinite ease-in-out; }
+  
+  @media print {
+    body { background: white !important; color: black !important; }
+    .card-dark { background: white !important; border: 1px solid #ccc !important; box-shadow: none !important; margin-bottom: 20px;}
+    .text-white { color: black !important; text-shadow: none !important; }
+    .card-title { color: black !important; border-bottom: 2px solid #ccc;}
+    .btn, .navbar, .page-sub, .badge { display: none !important; }
+    .risk-badge { color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    h1:before { content: "Medical Record: "; }
+    canvas { max-width: 100%; height: auto !important;}
+  }
+</style>
+{% endblock %}

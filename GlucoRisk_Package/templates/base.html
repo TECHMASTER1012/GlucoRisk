@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GlucoRisk — Real-time glucose risk monitoring with ML inference and ESP8266 IoT sensors">
+  <title>GlucoRisk Monitor</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E💉%3C/text%3E%3C/svg%3E">
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      /* Premium Dark Navy & Teal Palette */
+      --bg:        #080c16;
+      --bg-gradient: radial-gradient(circle at top right, #0d1b2a, #080c16 60%);
+      --surface:   rgba(17, 24, 39, 0.6);
+      --surface2:  rgba(26, 34, 53, 0.8);
+      --border:    rgba(255, 255, 255, 0.08);
+      --accent:    #00f0ff;
+      --accent-glow: rgba(0, 240, 255, 0.4);
+      --accent2:   #7b2cbf;
+      --text:      #f8fafc;
+      --muted:     #94a3b8;
+      
+      /* Risk Colors */
+      --normal:    #10b981;
+      --low:       #f59e0b;
+      --moderate:  #f97316;
+      --high:      #ef4444;
+      
+      --glass-blur: blur(12px);
+    }
+
+    /* Light Mode */
+    [data-theme="light"] {
+      --bg:        #f0f2f5;
+      --bg-gradient: radial-gradient(circle at top right, #e8ecf1, #f0f2f5 60%);
+      --surface:   rgba(255, 255, 255, 0.85);
+      --surface2:  rgba(240, 242, 245, 0.9);
+      --border:    rgba(0, 0, 0, 0.1);
+      --accent:    #0088ff;
+      --accent-glow: rgba(0, 136, 255, 0.3);
+      --text:      #1e293b;
+      --muted:     #64748b;
+    }
+    [data-theme="light"] body { color: var(--text); }
+    [data-theme="light"] .navbar { background: rgba(255,255,255,0.85) !important; }
+    [data-theme="light"] .form-control, [data-theme="light"] .form-select { background: rgba(255,255,255,0.8); color: var(--text); }
+    [data-theme="light"] .glucotoast { background: rgba(255,255,255,0.92); }
+    [data-theme="light"] body::before, [data-theme="light"] body::after { opacity: 0.07; }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      background-image: var(--bg-gradient);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 14px;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    
+    /* Background decorative blobs */
+    body::before, body::after {
+      content: '';
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      z-index: -1;
+      opacity: 0.15;
+    }
+    body::before {
+      top: -10%; left: -10%;
+      width: 50vw; height: 50vw;
+      background: var(--accent);
+    }
+    body::after {
+      bottom: -10%; right: -10%;
+      width: 40vw; height: 40vw;
+      background: var(--accent2);
+    }
+
+    /* ── Navbar ───────────────────────────────── */
+    .navbar {
+      background: rgba(8, 12, 22, 0.8) !important;
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .navbar-brand {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 1.5rem;
+      color: var(--accent) !important;
+      letter-spacing: -0.5px;
+      text-shadow: 0 0 10px var(--accent-glow);
+    }
+    .navbar-brand span { color: var(--text); text-shadow: none; }
+    .nav-link { color: var(--muted) !important; font-size: 13px; font-weight: 500; transition: color 0.3s; }
+    .nav-link:hover { color: var(--text) !important; }
+    .nav-user {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      padding: 6px 16px;
+      border-radius: 20px;
+    }
+
+    /* ── Layout ───────────────────────────────── */
+    .main-container { padding: 40px 32px; max-width: 1400px; margin: 0 auto; }
+
+    .page-title {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 2.2rem;
+      color: var(--text);
+      margin-bottom: 8px;
+      letter-spacing: -1px;
+    }
+    .page-sub { color: var(--muted); font-size: 13px; margin-bottom: 32px; }
+
+    /* ── Glass Cards ────────────────────────────────── */
+    .card-dark {
+      background: var(--surface);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    }
+    .card-title {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--accent);
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, var(--border), transparent);
+    }
+
+    /* ── Form ─────────────────────────────────── */
+    .form-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .form-control, .form-select {
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 15px;
+      border-radius: 10px;
+      padding: 12px 16px;
+      transition: all 0.3s ease;
+    }
+    .form-control:focus, .form-select:focus {
+      background: rgba(0, 240, 255, 0.05);
+      border-color: var(--accent);
+      color: var(--text);
+      box-shadow: 0 0 15px var(--accent-glow);
+      outline: none;
+    }
+    .form-select option { background: #0d1b2a; color: var(--text); }
+    .form-text { color: var(--muted); font-size: 11px; margin-top: 6px; opacity: 0.7; }
+
+    .btn-predict {
+      background: linear-gradient(135deg, #00f0ff, #0088ff);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 14px 28px;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: 1px;
+      width: 100%;
+      margin-top: 16px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(0, 240, 255, 0.3);
+      text-transform: uppercase;
+    }
+    .btn-predict:hover { 
+      transform: translateY(-2px); 
+      box-shadow: 0 8px 25px rgba(0, 240, 255, 0.5); 
+    }
+    .btn-predict:active { transform: translateY(1px); }
+
+    /* ── Risk Badge ───────────────────────────── */
+    .risk-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 14px;
+      border-radius: 30px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      font-family: 'Syne', sans-serif;
+      border: 1px solid;
+      box-shadow: 0 0 15px inset;
+    }
+    .risk-NORMAL        { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3); color: var(--normal); box-shadow: 0 0 15px rgba(16,185,129,0.2) inset; }
+    .risk-LOW_RISK      { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.3); color: var(--low); box-shadow: 0 0 15px rgba(245,158,11,0.2) inset; }
+    .risk-MODERATE_RISK { background: rgba(249,115,22,0.1); border-color: rgba(249,115,22,0.3); color: var(--moderate); box-shadow: 0 0 15px rgba(249,115,22,0.2) inset; }
+    .risk-HIGH_RISK     { background: rgba(239,68,68,0.1);  border-color: rgba(239,68,68,0.3);  color: var(--high); animation: pulse 2s infinite; box-shadow: 0 0 15px rgba(239,68,68,0.2) inset; }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(239,68,68,0); }
+      100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+    }
+
+    /* ── Table ────────────────────────────────── */
+    .table-dark-custom { width: 100%; border-collapse: separate; border-spacing: 0; }
+    .table-dark-custom th {
+      color: var(--muted); font-size: 11px; text-transform: uppercase;
+      letter-spacing: 1px; padding: 12px 16px; border-bottom: 1px solid var(--border);
+      font-weight: 600; text-align: left;
+    }
+    .table-dark-custom td {
+      padding: 16px; border-bottom: 1px solid rgba(255,255,255,0.03);
+      color: var(--text); font-size: 14px; transition: background 0.2s;
+    }
+    .table-dark-custom tbody tr { transition: all 0.2s; cursor: default; }
+    .table-dark-custom tbody tr:hover td { background: rgba(255,255,255,0.02); }
+    .table-dark-custom tr:last-child td { border-bottom: none; }
+
+    /* ── Alerts ───────────────────────────────── */
+    .alert-custom {
+      border-radius: 12px; padding: 16px 20px; margin-bottom: 24px;
+      font-size: 14px; border: 1px solid; backdrop-filter: var(--glass-blur);
+    }
+    .alert-success { background: rgba(0,240,255,0.1); border-color: var(--accent); color: var(--accent); }
+    .alert-warning { background: rgba(245,158,11,0.1); border-color: var(--low); color: var(--low); }
+    .alert-danger  { background: rgba(239,68,68,0.1);  border-color: var(--high); color: var(--high); }
+
+    /* ── Auth pages ───────────────────────────── */
+    .auth-wrap {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: var(--bg); background-image: var(--bg-gradient);
+    }
+    .auth-card {
+      background: var(--surface);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--border);
+      border-radius: 20px; padding: 48px; width: 100%; max-width: 440px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+    .auth-logo {
+      font-family: 'Syne', sans-serif; font-weight: 800; font-size: 2.2rem;
+      color: var(--accent); text-align: center; margin-bottom: 8px;
+      text-shadow: 0 0 15px var(--accent-glow);
+    }
+    .auth-sub { color: var(--muted); font-size: 14px; text-align: center; margin-bottom: 36px; }
+    .auth-link { color: var(--accent); text-decoration: none; font-weight: 500; }
+    .auth-link:hover { text-decoration: underline; text-shadow: 0 0 8px var(--accent-glow); }
+
+    /* ── Mobile Responsiveness ────────────────── */
+    @media (max-width: 991px) {
+      .main-container { padding: 20px 16px; }
+      .page-title { font-size: 1.6rem; }
+      .navbar { padding: 12px 16px; }
+      
+      /* Make sure the header controls stack nicely */
+      .header-controls { flex-direction: column; align-items: flex-start !important; gap: 15px; text-align: left !important; margin-top: 15px; }
+      .header-controls div.text-end { text-align: left !important; }
+      
+      /* Scale Down typography for mobile vitals */
+      .vital-block h2.display-3 { font-size: 3rem; }
+      .vital-block h2.display-5 { font-size: 2.2rem; }
+      
+      /* Resize digital twin and charts */
+      svg { max-height: 120px; }
+      .chart-container { height: 180px !important; }
+    }
+
+    /* ── Scrollbar ────────────────────────────── */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+    /* ── Animations ───────────────────────────── */
+    .fade-in { animation: fadeIn 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(15px); } to { opacity:1; transform:translateY(0); } }
+
+    /* ── In-page Toast ────────────────────────── */
+    #toast-container {
+      position: fixed; top: 90px; right: 30px;
+      z-index: 9999; display: flex; flex-direction: column; gap: 12px;
+      pointer-events: none;
+    }
+    .glucotoast {
+      pointer-events: all;
+      min-width: 320px; max-width: 400px;
+      background: rgba(17, 24, 39, 0.85);
+      backdrop-filter: var(--glass-blur);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      border-left: 5px solid;
+      padding: 16px 20px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+      display: flex; align-items: flex-start; gap: 16px;
+      animation: slideIn 0.4s cubic-bezier(.22,.68,0,1.2);
+      transition: opacity 0.3s, transform 0.3s;
+    }
+    .glucotoast.toast-HIGH_RISK     { border-left-color: var(--high); box-shadow: 0 10px 40px rgba(239,68,68,0.2); }
+    .glucotoast.toast-MODERATE_RISK { border-left-color: var(--moderate); }
+    .glucotoast.toast-LOW_RISK      { border-left-color: var(--low); }
+    .glucotoast.toast-NORMAL        { border-left-color: var(--accent); }
+    .glucotoast-icon  { font-size: 26px; line-height: 1; margin-top: 2px; filter: drop-shadow(0 0 8px rgba(255,255,255,0.2)); }
+    .glucotoast-body  { flex: 1; }
+    .glucotoast-title { font-family:'Syne',sans-serif; font-weight:800; font-size:14px; color:#fff; margin-bottom:6px; letter-spacing: 0.5px; }
+    .glucotoast-msg   { font-size:12px; color:var(--muted); line-height:1.6; }
+    .glucotoast-score { font-size:12px; color:var(--text); margin-top:8px; font-weight: 500; background: rgba(0,0,0,0.3); display: inline-block; padding: 4px 10px; border-radius: 6px; }
+    .glucotoast-close { background:none; border:none; color:var(--muted); font-size:18px; cursor:pointer; padding:0; line-height:1; align-self:flex-start; transition: color 0.2s; }
+    .glucotoast-close:hover { color:#fff; }
+    @keyframes slideIn {
+      from { opacity:0; transform:translateX(50px) scale(0.9); }
+      to   { opacity:1; transform:translateX(0)    scale(1); }
+    }
+    .glucotoast.hiding { opacity:0; transform:translateX(50px) scale(0.9); }
+  </style>
+</head>
+<body>
+
+{% if session.get('user_id') %}
+<nav class="navbar">
+  <div class="d-flex align-items-center gap-4 w-100">
+    <a class="navbar-brand" href="{{ url_for('dashboard') }}">Gluco<span>Risk</span></a>
+    <div class="ms-auto d-flex align-items-center gap-3">
+      <!-- Notification bell -->
+      <button id="theme-toggle" onclick="toggleTheme()" title="Toggle dark/light mode"
+        style="background:none;border:1px solid var(--border);border-radius:8px;
+               padding:5px 12px;cursor:pointer;font-size:13px;color:var(--muted);
+               display:flex;align-items:center;gap:6px;transition:all 0.2s">
+        <span id="theme-icon">🌙</span>
+        <span style="font-family:'DM Mono',monospace;font-size:11px" id="theme-label">dark</span>
+      </button>
+      <button id="notif-btn" onclick="requestNotifPermission()" title="Enable mobile notifications"
+        style="background:none;border:1px solid var(--border);border-radius:8px;
+               padding:5px 12px;cursor:pointer;font-size:13px;color:var(--muted);
+               display:flex;align-items:center;gap:6px;transition:all 0.2s">
+        <span id="notif-icon">🔔</span>
+        <span id="notif-label" style="font-family:'DM Mono',monospace;font-size:11px">notify</span>
+      </button>
+      <span class="nav-user">{{ session.get('username') }}</span>
+      <a href="{{ url_for('profile') }}" class="nav-link" title="Patient Profile"><i class="bi bi-person-badge"></i></a>
+      <a href="{{ url_for('history_page') }}" class="nav-link" title="History"><i class="bi bi-clock-history"></i></a>
+      <a href="{{ url_for('patients_view') }}" class="nav-link" title="Patients"><i class="bi bi-people"></i></a>
+      <a href="{{ url_for('consent_page') }}" class="nav-link" title="Consent"><i class="bi bi-shield-check"></i></a>
+      {% if session.get('role') == 'admin' %}
+      <a href="{{ url_for('audit_viewer') }}" class="nav-link" title="Audit Log"><i class="bi bi-journal-text"></i></a>
+      {% endif %}
+      <a href="{{ url_for('logout') }}" class="nav-link">logout</a>
+    </div>
+  </div>
+</nav>
+{% endif %}
+
+<div class="{% if session.get('user_id') %}main-container{% endif %} fade-in">
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert-custom alert-{{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Toast container (always present) -->
+<div id="toast-container"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// GlucoRisk Notification System
+// ══════════════════════════════════════════════════════════
+
+const RISK_META = {
+  HIGH_RISK:      { icon: '🚨', label: 'HIGH RISK',      color: '#ef4444', auto_dismiss: false },
+  MODERATE_RISK:  { icon: '🔶', label: 'MODERATE RISK',  color: '#f97316', auto_dismiss: true  },
+  LOW_RISK:       { icon: '🟡', label: 'LOW RISK',       color: '#fbbf24', auto_dismiss: true  },
+  NORMAL:         { icon: '✅', label: 'NORMAL',         color: '#00d4aa', auto_dismiss: true  },
+};
+
+let swRegistration = null;
+
+// ── 1. Register Service Worker ─────────────────────────
+async function registerSW() {
+  if (!('serviceWorker' in navigator)) return null;
+  try {
+    const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    await navigator.serviceWorker.ready;
+    swRegistration = reg;
+    return reg;
+  } catch (e) {
+    console.warn('SW registration failed:', e);
+    return null;
+  }
+}
+
+// ── 2. Request notification permission ────────────────
+async function requestNotifPermission() {
+  if (!('Notification' in window)) {
+    showToast('NORMAL', 'Not Supported',
+      'Your browser does not support notifications.', 0);
+    return;
+  }
+
+  if (Notification.permission === 'granted') {
+    showToast('NORMAL', 'Already Enabled',
+      'Notifications are already enabled on this device.', 0);
+    updateNotifBtn('granted');
+    return;
+  }
+
+  const perm = await Notification.requestPermission();
+  updateNotifBtn(perm);
+
+  if (perm === 'granted') {
+    await registerSW();
+    showToast('NORMAL', 'Notifications Enabled ✓',
+      'You will receive alerts for MODERATE and HIGH risk predictions.', 0);
+  } else {
+    showToast('LOW_RISK', 'Permission Denied',
+      'Enable notifications in your browser settings to receive mobile alerts.', 0);
+  }
+}
+
+// ── 3. Update bell button state ───────────────────────
+function updateNotifBtn(state) {
+  const btn   = document.getElementById('notif-btn');
+  const icon  = document.getElementById('notif-icon');
+  const label = document.getElementById('notif-label');
+  if (!btn) return;
+  if (state === 'granted') {
+    icon.textContent  = '🔔';
+    label.textContent = 'on';
+    btn.style.borderColor = '#00d4aa';
+    btn.style.color       = '#00d4aa';
+  } else if (state === 'denied') {
+    icon.textContent  = '🔕';
+    label.textContent = 'blocked';
+    btn.style.borderColor = '#ef4444';
+    btn.style.color       = '#ef4444';
+  } else {
+    icon.textContent  = '🔔';
+    label.textContent = 'notify';
+  }
+}
+
+// ── 4. Show in-page toast ──────────────────────────────
+function showToast(risk, title, message, score) {
+  const meta = RISK_META[risk] || RISK_META.NORMAL;
+  const container = document.getElementById('toast-container');
+
+  const toast = document.createElement('div');
+  toast.className = `glucotoast toast-${risk}`;
+  toast.innerHTML = `
+    <div class="glucotoast-icon">${meta.icon}</div>
+    <div class="glucotoast-body">
+      <div class="glucotoast-title">${title}</div>
+      <div class="glucotoast-msg">${message}</div>
+      ${score ? `<div class="glucotoast-score">Risk score: ${score}%</div>` : ''}
+    </div>
+    <button class="glucotoast-close" onclick="dismissToast(this.closest('.glucotoast'))">✕</button>
+  `;
+  container.appendChild(toast);
+
+  // Auto dismiss after 6s (except HIGH_RISK and manual ones)
+  if (meta.auto_dismiss && score) {
+    setTimeout(() => dismissToast(toast), 6000);
+  }
+}
+
+function dismissToast(toast) {
+  if (!toast) return;
+  toast.classList.add('hiding');
+  setTimeout(() => toast.remove(), 300);
+}
+
+// ── 5. Send mobile push notification via service worker
+async function sendMobilePush(risk, title, body, score) {
+  if (Notification.permission !== 'granted') return;
+  if (!swRegistration) {
+    swRegistration = await registerSW();
+  }
+  if (!swRegistration) return;
+
+  // Post message to service worker → it calls showNotification()
+  // (Direct Notification() doesn't work reliably on mobile when page is background)
+  const sw = swRegistration.active || swRegistration.waiting || swRegistration.installing;
+  if (sw) {
+    sw.postMessage({
+      type: 'SHOW_NOTIFICATION',
+      payload: {
+        title,
+        body,
+        tag: `glucorisk-${risk}`,
+        data: { risk, score, url: '/dashboard' }
+      }
+    });
+  }
+}
+
+// ── 6. Main trigger: called after every prediction ────
+function handlePrediction(risk, score, advice, glucose) {
+  const meta   = RISK_META[risk] || RISK_META.NORMAL;
+  const title  = `GlucoRisk: ${meta.label}`;
+  const body   = `Glucose: ${glucose} mg/dL · Score: ${score}%\n${advice}`;
+
+  // Always show in-page toast
+  showToast(risk, meta.icon + '  ' + meta.label, advice, score);
+
+  // Send mobile push only for MODERATE and HIGH
+  if (risk === 'HIGH_RISK' || risk === 'MODERATE_RISK') {
+    sendMobilePush(risk, title, body, score);
+  }
+}
+
+// ── 7. Init on page load ───────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  // Update bell button to reflect current permission state
+  updateNotifBtn(Notification.permission);
+
+  // Register SW silently if already granted
+  if (Notification.permission === 'granted') {
+    await registerSW();
+  }
+
+  // If Flask passed a new prediction result, trigger notification
+  const predData = document.getElementById('prediction-data');
+  if (predData) {
+    const d = JSON.parse(predData.textContent);
+    // Small delay so page has rendered first
+    setTimeout(() => handlePrediction(d.risk, d.score, d.advice, d.glucose), 400);
+  }
+});
+
+// ── 8. Dark/Light Mode Toggle ────────────────────────
+function toggleTheme() {
+  const html = document.documentElement;
+  const current = html.getAttribute('data-theme') || 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', next);
+  localStorage.setItem('glucorisk-theme', next);
+  updateThemeBtn(next);
+}
+
+function updateThemeBtn(theme) {
+  const icon = document.getElementById('theme-icon');
+  const label = document.getElementById('theme-label');
+  if (icon && label) {
+    icon.textContent = theme === 'dark' ? '🌙' : '☀️';
+    label.textContent = theme;
+  }
+}
+
+// Apply saved theme on load
+(function() {
+  const saved = localStorage.getItem('glucorisk-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+  updateThemeBtn(saved);
+})();
+</script>
+</body>
+</html>

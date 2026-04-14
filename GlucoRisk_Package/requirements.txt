@@ -1,0 +1,14 @@
+pyserial
+rich
+flask
+werkzeug
+numpy
+scikit-learn
+twilio
+python-dotenv
+flask-wtf
+flask-limiter
+reportlab
+gunicorn
+paho-mqtt
+cryptography

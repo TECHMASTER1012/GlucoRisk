@@ -13,7 +13,7 @@
 
 It is built specifically for real-world clinical deployments, guaranteeing deep compliance, immutable auditing, and high-concurrency patient tracking.
 
-## 🚀 Architectural Blueprint
+##  Architectural Blueprint
 
 GlucoRisk operates across four distinct topological layers:
 
@@ -35,7 +35,7 @@ GlucoRisk operates across four distinct topological layers:
    - **Privacy First:** Raw patient biometric data *never* leaves the edge device for training. 
    - **Mechanism:** Edge nodes train local gradients which are aggregated on the server via Federated Averaging (FedAvg), continually evolving the global model's intelligence without compromising HIPAA constraints.
 
-## 🛡️ Clinical-Grade Hardening (Security & Compliance)
+##  Clinical-Grade Hardening (Security & Compliance)
 
 GlucoRisk is meticulously hardened to surpass modern healthcare data regulations (HIPAA/GDPR):
 
@@ -75,7 +75,7 @@ python3 web_app.py
 ### 3. Edge Setup (ESP32)
 Flash the `GlucoRisk_ESP32/GlucoRisk_ESP32.ino` firmware. Ensure `SSID`, `PASSWORD`, and `SERVER_IP` variables are correctly bound to your active fog gateway or cloud instance.
 
-## 📊 Dataset & Modeling
+##  Dataset & Modeling
 
 The internal model was trained utilizing the rich `glucose_risk_dataset.csv`, consisting of 3,000 perfectly balanced records analyzing hyper/hypoglycemic trends against:
 - Heart Rate (bpm)
@@ -83,7 +83,7 @@ The internal model was trained utilizing the rich `glucose_risk_dataset.csv`, co
 - GSR (Galvanic Skin Response) 
 - BMI, Age, and Activity Levels
 
-## 🤝 Contributing
+##  Contributing
 The platform is designed aggressively around scale. Modules like `federated.py` and `fog_gateway.py` are built on extensible interfaces. Before submitting PRs, ensure all encryption layers pass and no PII leaks to the standard stdout loggers (`audit.py` handles this).
 
 ---
